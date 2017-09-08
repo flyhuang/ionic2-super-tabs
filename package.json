@@ -1,6 +1,6 @@
 {
   "name": "ionic2-super-tabs",
-  "version": "4.1.5",
+  "version": "4.1.5-chainz-0.0.3",
   "description": "Swipeable tabs module for Ionic 3 Apps",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
@@ -34,5 +34,8 @@
   },
   "peerDependencies": {
     "ionic-angular": "^3.9.2"
+  },
+  "publishConfig": {
+    "registry": "http://10.16.100.79:8081/repository/npm-chainz/"
   }
 }
