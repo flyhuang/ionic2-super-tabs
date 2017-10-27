@@ -272,8 +272,9 @@ export class SuperTabs implements OnInit, AfterContentInit, AfterViewInit, OnDes
 
     if (viewCtrl) {
       obsToMerge.push(viewCtrl.didEnter);
-      viewCtrl._setContent(this);
-      viewCtrl._setContentRef(el);
+      // 解决白屏问题 & ionic 3.8.0 不能支持的问题
+      // viewCtrl._setContent(this);
+      // viewCtrl._setContentRef(el);
     }
 
     // re-adjust the height of the slider when the orientation changes
@@ -315,7 +316,7 @@ export class SuperTabs implements OnInit, AfterContentInit, AfterViewInit, OnDes
     this.toolbar.tabs = this._tabs;
   }
 
-  async ngAfterViewInit() {
+  ngAfterViewInit() {
     const tabsSegment = this.linker.getSegmentByNavIdOrName(this.id, this.name);
 
     if (tabsSegment) {
@@ -327,8 +328,7 @@ export class SuperTabs implements OnInit, AfterContentInit, AfterViewInit, OnDes
     if (!this.hasTitles && !this.hasIcons) this._isToolbarVisible = false;
 
     this.tabsContainer.slideTo(this.selectedTabIndex, false);
-    await this.refreshTabStates();
-    this.fireLifecycleEvent(['willEnter', 'didEnter']);
+    this.refreshTabStates();
 
     this.setFixedIndicatorWidth();
 
@@ -406,9 +406,11 @@ export class SuperTabs implements OnInit, AfterContentInit, AfterViewInit, OnDes
     this.refreshContainerHeight();
   }
 
-  slideTo(indexOrId: string | number, fireEvent: boolean = true) {
-    typeof indexOrId === 'string' && (indexOrId = this.getTabIndexById(indexOrId));
-    fireEvent && this.onToolbarTabSelect(indexOrId);
+  slideTo(indexOrId: string | number) {
+    if (typeof indexOrId === 'string') {
+      indexOrId = this.getTabIndexById(indexOrId);
+    }
+    this.onToolbarTabSelect(indexOrId);
   }
 
   getActiveChildNavs(): NavigationContainer[] {
@@ -490,29 +492,36 @@ export class SuperTabs implements OnInit, AfterContentInit, AfterViewInit, OnDes
    * Runs when the user clicks on a segment button
    * @param index
    */
-  async onTabChange(index: number) {
-    index = Number(index);
+  onTabChange(index: number) {
     if (index === this.selectedTabIndex) {
       this.tabSelect.emit({
         index,
         id: this._tabs[index].tabId,
         changed: false
       });
-      return;
     }
 
-
     if (index <= this._tabs.length) {
+      const currentTab: SuperTab = this.getActiveTab();
+      let activeView: ViewController = currentTab.getActive();
 
-      this.fireLifecycleEvent(['willLeave', 'didLeave']);
+      if (activeView) {
+        activeView._willLeave(false);
+        activeView._didLeave();
+      }
 
       this.selectedTabIndex = index;
 
       this.linker.navChange(DIRECTION_SWITCH);
 
-      await this.refreshTabStates();
+      this.refreshTabStates();
 
-      this.fireLifecycleEvent(['willEnter', 'didEnter']);
+      activeView = this.getActiveTab().getActive();
+
+      if (activeView) {
+        activeView._willEnter();
+        activeView._didEnter();
+      }
 
       this.tabSelect.emit({
         index,
@@ -523,44 +532,22 @@ export class SuperTabs implements OnInit, AfterContentInit, AfterViewInit, OnDes
   }
 
   onToolbarTabSelect(index: number) {
-    if (index !== this.selectedTabIndex) {
-      this.tabsContainer.slideTo(index);
-    }
-    return this.onTabChange(index);
+    this.tabsContainer.slideTo(index);
+    this.onTabChange(index);
   }
 
-  async onContainerTabSelect(ev: { index: number; changed: boolean }) {
+  onContainerTabSelect(ev: {index: number; changed: boolean}) {
     if (ev.changed) {
-      await this.onTabChange(ev.index);
+      this.onTabChange(ev.index);
     }
     this.alignIndicatorPosition(true);
   }
 
-  private fireLifecycleEvent(events: string[]) {
-    const activeView = this.getActiveTab().getActive();
-    events.forEach((event: string) => {
-      switch(event) {
-        case 'willEnter':
-          activeView._willEnter();
-          break;
-        case 'didEnter':
-          activeView._didEnter();
-          break;
-        case 'willLeave':
-          activeView._willLeave(false);
-          break;
-        case 'didLeave':
-          activeView._didLeave();
-          break;
-      }
-    });
-  }
-
   private refreshTabStates() {
-    return Promise.all(this._tabs.map((tab, i) => {
+    this._tabs.forEach((tab, i) => {
       tab.setActive(i === this.selectedTabIndex);
-      return tab.load(Math.abs(this.selectedTabIndex - i) < 2);
-    }));
+      tab.load(Math.abs(this.selectedTabIndex - i) < 2);
+    });
   }
 
   private updateTabWidth() {
